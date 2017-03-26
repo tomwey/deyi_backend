@@ -1,7 +1,7 @@
 class MyFooter < ActiveAdmin::Component
   def build
     super(id: "footer")
-    para "版权所有 #{Date.today.year} 得益工作室版"
+    para "版权所有 #{Date.today.year} 得益"
   end
 end
 
