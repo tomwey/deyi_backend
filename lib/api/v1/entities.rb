@@ -27,71 +27,20 @@ module API
         end
       end
       
-      # 收货地址
-      class Shipment < Base
-        expose :name
-        expose :hack_mobile, as: :mobile
-        expose :address
-        expose :is_current do |model, opts|
-          model.id == model.user.try(:current_shipment_id)
-        end
-      end
-      
-      # 用户基本信息
-      class UserProfile < Base
+      class User < Base
         expose :uid, format_with: :null
-        expose :mobile, format_with: :null
-        expose :nickname do |model, opts|
-          model.nickname || model.hack_mobile
-        end
-        expose :avatar do |model, opts|
-          model.avatar.blank? ? "" : model.avatar_url(:large)
-        end
-        expose :nb_code, as: :invite_code
-        expose :bean
-        expose :balance
-        expose :current_shipment, as: :shipment, using: API::V1::Entities::Shipment, if: proc { |u| u.current_shipment_id.present? }
-        # expose :wifi_length
-        expose :qrcode_url
-      end
-      
-      # 用户详情
-      class User < UserProfile
         expose :private_token, as: :token, format_with: :null
       end
       
-      class Studio < Base
-        expose :studio_id, as: :id
-        expose :name
-        expose :contact_name
+      # 用户基本信息
+      class UserProfile < User
+        expose :uid, format_with: :null
+        expose :avatar do |model, opts|
+          model.avatar.blank? ? "" : model.avatar_url(:large)
+        end
         expose :balance
-        expose :earnings, as: :earn
-      end
-      
-      # 供应商
-      class Merchant < Base
-        expose :name
-        expose :mobile
-        expose :address, format_with: :null
-        expose :note, format_with: :null
-      end
-      
-      # 商品
-      class Product < Base
-        expose :title, :body, :price, :sku, :is_virtual_goods, :orders_count, :visit_count
-        expose :stocks_count, as: :stock
-        expose :image do |model, opts|
-          if model.image.blank?
-            ""
-          else
-            model.image.url(:thumb)
-          end
-        end
-        expose :merchant_name do |model, opts|
-          model.merchant.try(:name) || ""
-        end
-        expose :detail_url
-        
+        expose :total_earn
+        expose :invites_count
       end
       
       # 订单
@@ -252,62 +201,6 @@ module API
         end
       end
       
-      # 租房
-      class Apartment < Base
-        expose :images do |model, opts|
-          img_size = opts[:opts][:image_size].to_sym
-          model.images.map { |img| img.url(img_size) }
-        end
-        expose :name, :area, :rental, :rent_type
-        expose :model do |model, opts|
-          model.model_info
-        end
-        expose :title
-        expose :body, format_with: :null
-        expose :facilities
-        expose :deco_info, format_with: :null
-        expose :contact_info, if: proc { |a| not a.hide_mobile } do
-          expose :u_name,   format_with: :null
-          expose :u_mobile, format_with: :null
-        end
-        expose :room_info, if: proc { |apartment| apartment.rent_type == '单间' } do
-          expose :room_type
-          expose :sex_limit
-        end
-        expose :location_str, as: :location
-        expose :distance do |model, opts|
-          model.try(:distance) || 0
-        end
-        expose :published_at
-        expose :user, using: API::V1::Entities::UserProfile, if: proc { |a| a.user_id.present? }
-      end
-      
-      # 商家广告
-      class AdTask < Base
-        expose :title
-        expose :subtitle, format_with: :null
-        expose :cover_image do |model,opts|
-          img_size = opts[:opts][:image_size].to_sym
-          if model.cover_image.blank?
-            ''
-          else
-            model.cover_image.url(img_size)
-          end
-        end
-        expose :price, :share_price
-        expose :location_str, as: :location
-        expose :distance do |model, opts|
-          model.try(:distance) || 0
-        end
-        expose :view_count, :sort
-        expose :expired_on, format_with: :chinese_date
-        expose :ad_type
-        expose :ad_contents, if: proc { |a| a.ad_type != 2 } do |model, opts|
-          model.ad_contents.map { |file| file.url }
-        end
-        expose :ad_link, if: proc { |a| a.ad_type == 2 and a.ad_link.present? }
-      end
-      
       # 消息
       class Message < Base
         expose :title do |model, opts|
@@ -370,25 +263,6 @@ module API
           model.image.blank? ? "" : model.image.url(:large)
         end
         expose :link, format_with: :null
-      end
-      
-      # 上网的状态
-      class WifiStatus < Base
-        expose :wifi_length, :login_count
-        expose :last_login_at, format_with: :chinese_datetime
-        expose :wifi_online
-        expose :wifi_mac, as: :mac
-        expose :ap_list do |model, opts|
-          if opts.blank? or opts[:opts].blank? or opts[:opts][:ap_list].blank?
-            []
-          else
-            opts[:opts][:ap_list]
-          end
-        end
-      end
-      
-      class WifiChargePlan < Base
-        expose :cid, :hour, :cost
       end
     
     end

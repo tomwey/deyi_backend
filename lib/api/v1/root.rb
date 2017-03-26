@@ -18,7 +18,7 @@ module API
         end
       end
       
-      mount API::V1::StudiosAPI
+      mount API::V1::UsersAPI
       mount API::V1::AppTasksAPI
       mount API::V1::EarningsAPI
       
