@@ -92,7 +92,7 @@ module API
             return render_error(1009, '任务已经提交完成，不能取消')
           end
           
-          order.commited_at = Time.zone.now + 3.minutes
+          order.commited_at = Time.zone.now + (CommonConfig.task_execute_duration || 3).minutes
           if order.save
             render_json_no_data
           else

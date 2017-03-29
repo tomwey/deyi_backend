@@ -106,7 +106,7 @@ module API
       class TaskOrder < Base
         expose :order_no, as: :oid
         expose :expire_time do |model, opts|
-          model.created_at.to_i
+          (model.created_at + (CommonConfig.task_expire_duration || 30).minutes).to_i
         end
       end
       
