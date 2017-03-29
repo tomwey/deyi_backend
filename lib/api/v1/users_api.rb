@@ -38,7 +38,7 @@ module API
             return render_error(4004, '该用户不存在')
           end
           
-          render_json(@user, API::V1::Entities::UserProfile)
+          render_json(user, API::V1::Entities::UserProfile)
         end # end get me
       end # end user resource
       
