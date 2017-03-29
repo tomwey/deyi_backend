@@ -4,11 +4,14 @@ class AppTask < ActiveRecord::Base
   validates :name, :keywords, :task_steps, :price, :start_time, :end_time, :app_id, presence: true
   
   scope :current, -> { where('start_time < :time and end_time > :time', time: Time.zone.now) }
-  scope :after, -> { where('start_time > ?', Time.zone.now) }
-  # scope :filter_for_st, ->(st) { where("#{st == 0 ? 'put_in_count' : 'st_put_in_count'} != 0") }
-  scope :on_sale, -> { where.not(put_in_count: 0) }
+  scope :after,   -> { where('start_time > ?', Time.zone.now) }
+  scope :done,    -> {  }
+  
+  scope :on_sale, -> { where('stock > 0') }
   scope :sorted, -> { order('sort desc') }
   scope :recent, -> { order('id desc') }
+  
+  attr_accessor :put_in_count
   
   before_create :generate_unique_id
   def generate_unique_id
@@ -19,6 +22,18 @@ class AppTask < ActiveRecord::Base
       end
       self.task_id = (n.to_s + SecureRandom.random_number.to_s[2..8]).to_i
     end while self.class.exists?(:task_id => task_id)
+  end
+  
+  def add_stock(count, operator)
+    if count > 0
+      self.stock += count
+      self.save!
+      TaskStock.create!(app_task_id: self.id, quantity: count, operator_id: operator.try(:id))
+    end
+  end
+  
+  def put_in_count
+    0
   end
   
   def change_grab_count(n)

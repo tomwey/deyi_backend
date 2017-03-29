@@ -38,8 +38,12 @@ module API
         expose :avatar do |model, opts|
           model.avatar.blank? ? "" : model.avatar_url(:large)
         end
-        expose :balance
-        expose :total_earn
+        expose :balance do |model, opts|
+          "#{format('%.2f', model.balance / 100.0)}"
+        end
+        expose :total_earn do |model, opts|
+          "#{format('%.2f', model.total_earn / 100.0)}"
+        end
         expose :invites_count
       end
       
@@ -87,7 +91,7 @@ module API
         expose :name, :keywords, :task_steps
         expose :price
         expose :special_price
-        expose :put_in_count
+        expose :stock
         expose :grab_count
         # expose :in_progress do |model, opts|
         #   if opts[:ip] && opts[:uid]

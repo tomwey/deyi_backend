@@ -29,13 +29,36 @@ index do
   column :end_time
   column :special_price
   column '任务信息', sortable: false do |task|
-    raw("价格：#{task.price}<br>任务量：#{task.put_in_count}<br>完成量：#{task.grab_count}")
+    raw("价格：#{task.price}<br>剩余：#{task.stock}<br>完成量：#{task.grab_count}")
   end
   column :sort
   column :created_at
 
   actions
 
+end
+
+controller do
+  def create
+    # @item = Item.new(params[:item])
+    # @item.user = current_curator
+    super
+    
+    count = params[:app_task][:put_in_count].to_i
+    if count > 0
+      resource.add_stock(count, current_admin)
+    end
+  end 
+  
+  def update    
+    super
+    
+    count = params[:app_task][:put_in_count].to_i
+    if count > 0
+      resource.add_stock(count, current_admin)
+    end
+  end
+  
 end
 
 
