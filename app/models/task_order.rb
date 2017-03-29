@@ -10,7 +10,11 @@ class TaskOrder < ActiveRecord::Base
   before_create :create_order_no
   def create_order_no
     begin
-      self.order_no = Time.now.to_s(:number) + Time.now.nsec.to_s
+      n = rand(10)
+      if n == 0
+        n = 8
+      end
+      self.order_no = n.to_s + Time.now.to_s(:number)[2,6] + (Time.now.to_i - Date.today.to_time.to_i).to_s + Time.now.nsec.to_s[0,6]
     end while self.class.exists?(:order_no => order_no)
   end
   
