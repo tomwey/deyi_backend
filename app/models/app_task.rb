@@ -1,11 +1,11 @@
 class AppTask < ActiveRecord::Base
   belongs_to :app
+  has_many :task_orders
   
   validates :name, :keywords, :task_steps, :price, :start_time, :end_time, :app_id, presence: true
   
   scope :current, -> { where('start_time < :time and end_time > :time', time: Time.zone.now) }
   scope :after,   -> { where('start_time > ?', Time.zone.now) }
-  scope :done,    -> {  }
   
   scope :on_sale, -> { where('stock > 0') }
   scope :sorted, -> { order('sort desc') }

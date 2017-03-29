@@ -103,12 +103,17 @@ module API
         expose :start_time, format_with: :chinese_time
       end
       
-      class AppTaskDetail < AppTask
-        expose :task_log_id do |model, opts|
-          opts[:log_id] || opts[:opts][:log_id]
+      class TaskOrder < Base
+        expose :order_no, as: :oid
+        expose :expire_time do |model, opts|
+          model.created_at.to_i
         end
-        expose :expire do |model, opts|
-          opts[:expire_time] || opts[:opts][:expire_time]
+      end
+      
+      class AppTaskDetail < AppTask
+        expose :in_progress, using: API::V1::Entities::TaskOrder,
+           if: proc { |task| task.task_orders.where(state: 'pending').count > 0 } do |model, opts|
+             model.task_orders.where(state: 'pending').first
         end
       end
       

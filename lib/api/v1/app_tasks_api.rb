@@ -9,64 +9,25 @@ module API
         params do
           requires :token, type: String, desc: '认证Token'
         end
-        get :home do
+        get :list do
           user = authenticate!
-          { code: 0, message: 'ok', data: { current: [], after: [], done: [] } }
-          # u = Studio.find_by(studio_id: params[:uid])
-          # if u.blank?
-          #   return render_error(4004, '不正确的账号')
-          # end
-          # 
-          # @progress_task = AppTask.find_by(task_id: $redis.get("#{u.studio_id}:#{client_ip}"))
-          # puts @progress_task
-          # @current_tasks = AppTask.current.on_sale.sorted.recent
-          # if @progress_task
-          #   @current_tasks = @current_tasks.where.not(task_id: @progress_task.task_id)
-          #   @progress_task_log = StudioGrabTask.where(app_task_id: @progress_task.id, state: 'pending').first
-          #   if @progress_task_log.blank?
-          #     progress_task = []
-          #   else
-          #     progress_task = [API::V1::Entities::AppTaskDetail.represent(@progress_task_log.app_task, log_id: @progress_task_log.id, expire_time: @progress_task_log.expired_at.to_i)]
-          #   end
-          #   # progress_task = [API::V1::Entities::AppTask.represent(@progress_task)]
-          # else
-          #   progress_task = []
-          # end
-          # 
-          # @after_tasks = AppTask.after.on_sale.sorted.recent
-          # 
-          # if @current_tasks.any?
-          #   current_tasks = API::V1::Entities::AppTask.represent(@current_tasks)
-          # else
-          #   current_tasks = []
-          # end
-          # 
-          # if @after_tasks.any?
-          #   after_tasks = API::V1::Entities::AppTask.represent(@after_tasks)
-          # else
-          #   after_tasks = []
-          # end
-          # 
-          # if u.present?
-          #   completed_tasks = u.app_tasks.where('studio_grab_tasks.state = ?', 'completed').order('studio_grab_tasks.id desc')
-          # else
-          #   completed_tasks = []
-          # end
-          # 
-          # { code: 0, message: 'ok', data: { progress: progress_task, current: current_tasks, after: after_tasks, completed: completed_tasks } }
+          
+          @current = AppTask.on_sale.current.sorted.recent
+          @after   = AppTask.on_sale.after.sorted.recent
+          @done    = AppTask.joins(:task_orders).where('task_orders.user_id = ?', user.id).order('task_orders.created_at desc')
+          
+          { code: 0, message: 'ok', data: { current: API::V1::Entities::AppTaskDetail.represent(@current), 
+                                            after: API::V1::Entities::AppTask.represent(@after), 
+                                            done: API::V1::Entities::AppTask.represent(@done) } }
         end # end get home
         
         desc "获取任务详情"
         params do
-          requires :uid, type: String, desc: '用户ID或者工作室ID' 
+          requires :token, type: String, desc: '用户认证Token' 
         end
         get '/:task_id' do
-          u = Studio.find_by(studio_id: params[:uid])
-          
-          if u.blank?
-            return render_error(4004, '账户不存在')
-          end
-          
+          authenticate!
+
           task = AppTask.find_by(task_id: params[:task_id])
           if task.blank?
             return render_error(4004, '任务不存在')
@@ -77,108 +38,143 @@ module API
         
         desc "抢任务"
         params do
-          requires :uid, type: String, desc: '用户ID或者工作室ID'
+          requires :token, type: String, desc: '用户认证Token'
         end
         post '/:task_id/grab' do
-          u = Studio.find_by(studio_id: params[:uid])
-          
-          if u.blank?
-            return render_error(4004, '账户不存在')
-          end
+          user = authenticate!
           
           task = AppTask.find_by(task_id: params[:task_id])
           if task.blank?
             return render_error(4004, '任务不存在')
           end
           
-          ip = client_ip
-          if u.has_progressed_task?(ip)
+          # 是否有进行中的任务
+          has_order = task.task_orders.where(state: 'pending').count > 0
+          if has_order
             return render_error(1006, '有进行中的任务')
           end
           
-          # 是否还有库存
-          # if task.grab_count >= task.put_in_count
-          #   return render_error(1007, '任务已经下架了')
-          # end
+          # ip = client_ip
+          # 是否该任务还有库存
+          if task.stock == 0
+            return render_error(1006, '任务已经被抢光了')
+          end
           
-          log = StudioGrabTask.create!(ip: ip,
-                                       studio: u,
-                                       app_task: task,
-                                       expired_at: Time.zone.now + 30.minutes,
-                                       reward: task.price - task.special_price)
-          render_json(log.app_task, API::V1::Entities::AppTaskDetail, log_id: log.id, expire_time: log.expired_at.to_i)
+          # 下单
+          order = TaskOrder.create!(app_task: task, user: user, price: task.price, special_price: task.special_price)
+          
+          render_json(order.app_task, API::V1::Entities::AppTaskDetail)
         end # end grab
         
-        desc "放弃任务"
+        desc "开始任务"
         params do
-          requires :uid, type: String, desc: '用户ID或者工作室ID'
-          requires :id, type: Integer, desc: '进行中的任务记录ID'
+          requires :token, type: String, desc: '用户认证Token'
+          requires :oid,   type: String, desc: '任务流水号'
         end
-        post '/:task_id/cancel' do
-          
-          u = Studio.find_by(studio_id: params[:uid])
-          if u.blank?
-            return render_error(4004, '账户不存在')
-          end
+        post '/:task_id/begin' do
+          user = authenticate!
           
           task = AppTask.find_by(task_id: params[:task_id])
           if task.blank?
             return render_error(4004, '任务不存在')
           end
           
-          log = StudioGrabTask.find_by(id: params[:id], app_task_id: task.id)
-          if log.blank?
+          order = task.task_orders.find_by(order_no: params[:oid])
+          if order.blank?
             return render_error(4004, '您还未抢到该任务')
           end
           
-          if log.expired?
-            return render_error(1008, '抢到的任务已经失效，不能取消')
+          if order.expired?
+            return render_error(1008, '抢到的任务已经过期，不能取消')
           end
           
-          if log.can_cancel?
-            log.cancel
+          if order.completed?
+            return render_error(1009, '任务已经提交完成，不能取消')
+          end
+          
+          order.commited_at = Time.zone.now + 3.minutes
+          if order.save
             render_json_no_data
           else
-            render_error(1009, '不能重复取消')
+            render_error(1013, '任务启动失败')
+          end
+          
+        end
+        
+        desc "放弃任务"
+        params do
+          requires :token, type: String, desc: '用户认证Token'
+          requires :oid,   type: String, desc: '任务流水号'
+        end
+        post '/:task_id/cancel' do
+          user = authenticate!
+          
+          task = AppTask.find_by(task_id: params[:task_id])
+          if task.blank?
+            return render_error(4004, '任务不存在')
+          end
+          
+          order = task.task_orders.find_by(order_no: params[:oid])
+          if order.blank?
+            return render_error(4004, '您还未抢到该任务')
+          end
+          
+          if order.expired?
+            return render_error(1008, '抢到的任务已经过期，不能取消')
+          end
+          
+          if order.completed?
+            return render_error(1009, '任务已经提交完成，不能取消')
+          end
+          
+          if order.can_cancel?
+            order.cancel
+            render_json_no_data
+          else
+            render_error(1009, '不能重复取消任务')
           end
           
         end # end post cancel
         
         desc "提交任务"
         params do
-          requires :uid, type: String, desc: '用户ID或者工作室ID'
-          requires :id, type: Integer, desc: '任务记录ID'
+          requires :token, type: String, desc: '用户认证Token'
+          requires :oid,   type: String, desc: '任务流水号'
         end
         post '/:task_id/commit' do
-          
-          u = Studio.find_by(studio_id: params[:uid])
-          if u.blank?
-            return render_error(4004, '账户不存在')
-          end
+          user = authenticate!
           
           task = AppTask.find_by(task_id: params[:task_id])
           if task.blank?
             return render_error(4004, '任务不存在')
           end
           
-          log = StudioGrabTask.find_by(id: params[:id], app_task_id: task.id)
-          if log.blank?
-            return render_error(4004, '您还未抢到该任务')
+          order = task.task_orders.find_by(order_no: params[:oid])
+          if order.blank?
+            return render_error(4004, '任务订单不存在')
           end
           
-          if log.expired?
-            return render_error(1008, '抢到的任务已经失效，不能提交')
+          if order.expired?
+            return render_error(1008, '抢到的任务已经过期，不能提交')
           end
           
-          if log.canceled?
+          if order.canceled?
             return render_error(1010, '抢到的任务已经取消，不能提交')
           end
           
-          if log.can_complete?
-            log.complete
+          if order.commited_at.blank?
+            return render_error(1011, '您还未开始该任务，不能提交')
+          end
+          
+          if order.commited_at > Time.zone.now
+            return render_error(1011, '您的任务还未完成，不能提交')
+          end
+          
+          if order.can_complete?
+            order.complete
             render_json_no_data
           else
-            render_error(1011, '不能重复提交')
+            render_error(1012, '不能重复提交任务')
           end
           
         end # end commit
